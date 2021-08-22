@@ -1,9 +1,39 @@
-Как формируются команды (для лентяев кто не читает мануал). Например 5500000301E93C, где “55” всегда стоит в начале, 00 00 - адрес в данном случае широковещательный, 03 команда, 01 отрыть, E93С - CRC. Как определить CRC? Заходим в https://crccalc.com/ 5 и забиваем команду 5500000301 переводим в CRC-16 HEX. Обратите внимание что байты надо будет поменять местами. т.е. результат у вас будет 3СE9, но когда будете собирать команду и подавать в привод ЗС и E9 надо поменять местами.
+Например 5500000301E93C, где “55” всегда стоит в начале, 00 00 - адрес в данном случае широковещательный, 03 команда, 01 отрыть, E93С - CRC. Как определить CRC? Заходим в https://crccalc.com/ 5 и забиваем команду 5500000301
+Input type: HEX
+Нажимаем кнопку Calc CRC-16. 
+Смотрим Result для CRC-16/MODBUS - 0x3CE9
+Обратите внимание что байты надо будет поменять местами. т.е. результат у вас будет 3СE9, но когда будете собирать команду и подавать в привод ЗС и E9 надо поменять местами.
 
 Меняем адреса у приводов, для этого бежим по таблице и посылаем для каждого привода команду на изменение адреса: 55 00 00 02 00 02 01 01 9D 58 это команда для установки адреса 0101. Чтобы привод понял что вы хотите ему поменять адрес потребуется зажать кнопку на нем (4-5 сек), он моргнет 2 раза после чего посылаем команду указанную выше.
 
+55 00 00 03 01 E9 3C = open all
+
+55 01 01 03 01 B9 00 = open 1
+55 01 01 03 02 F9 01 = close 1
+55 01 01 03 03 38 C1 = stop 1
 
 
+55 FE FE 03 01 B9 24 = open 3
+55 FE FE 03 02 F9 25 = close 3
+55 FE FE 03 03 38 E5 = stop 3
+
+/dev/ttyS3
+
+echo -n 0x55,0x01,0x01,0x03,0x01,0xB9,0x00 > /dev/ttyS3
+
+echo -en '\x55\x01\x01\x03\x01\xB9\x00' > /dev/ttyS3 - open 1
+echo -en '\x55\x01\x01\x03\x02\xF9\x01' > /dev/ttyS3 - close 1
+echo -en '\x55\x01\x01\x03\x03\x38\xC1' > /dev/ttyS3 - stop 1
+
+#!/usr/bin/perl
+
+use Device::SerialPort;
+my $port = Device::SerialPort->new("/dev/ttyRS485-2");
+
+$port->baudrate(9600); 
+$port->databits(8);
+$port->parity("none");
+$port->stopbits(1);
 $output = "";
 # Широковещательные команды для всех приводов
 if ($ARGV[0] == 0) # команда открыть 5500000301E93C
@@ -148,3 +178,23 @@ else # считать текущее положение эл.карниза
     {
         $output = pack("C*",0x55,0x12,0x34,0x01,0x02,0x01,0x2B,0x4D);
     }
+
+HA
+
+cover:
+  - platform: mqtt
+   name: "MQTT Cover"
+   command_topic: "espcover/cover/set"
+   position_topic: "espcover/cover/position"
+   availability_topic: "espcover/cover/availability"
+   set_position_topic: "espcover/cover/set_position"
+   qos: 0
+   retain: true
+   payload_open: "OPEN"
+   payload_close: "CLOSE"
+   payload_stop: "STOP"
+   position_open: 100
+   position_closed: 0
+   payload_available: "online"
+   payload_not_available: "offline"
+   optimistic: false
